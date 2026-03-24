@@ -1,0 +1,21 @@
+{
+  "name": "tts-mcp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MCP server for Google Gemini TTS",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^1.46.0",
+    "@modelcontextprotocol/sdk": "1.12.1",
+    "google-auth-library": "^10.6.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
