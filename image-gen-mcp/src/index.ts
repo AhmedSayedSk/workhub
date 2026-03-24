@@ -9,6 +9,7 @@ import { uploadAssetSchema, uploadAsset } from './tools/upload-asset.js';
 import { registerAccountSchema, registerAccount } from './tools/register-account.js';
 import { deleteAccountSchema, deleteAccount } from './tools/delete-account.js';
 import { viewImageSchema, viewImage } from './tools/view-image.js';
+import { getReportSchema, getReport } from './tools/get-report.js';
 
 const server = new McpServer({
   name: 'image-gen',
@@ -69,6 +70,13 @@ server.tool(
   'View/read a local image file. Returns the image so you can see it.',
   viewImageSchema,
   async (args) => viewImage(args)
+);
+
+server.tool(
+  'get_report',
+  'Get a report of image generation usage — total requests, images generated, model breakdown, recent history.',
+  getReportSchema,
+  async (args) => getReport(args)
 );
 
 async function main() {

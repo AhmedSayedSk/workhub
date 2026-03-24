@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { apiPost } from '../api.js';
+import { logGeneration } from '../log.js';
 
 const DESKTOP_PATH = '/mnt/c/Users/Ahmed Sayed/Desktop';
 
@@ -79,6 +80,20 @@ export async function generateImage(args: {
       savedPaths.push('(download failed)');
     }
   }
+
+  // Log the generation
+  logGeneration({
+    timestamp: new Date().toISOString(),
+    prompt: args.prompt,
+    model: args.model,
+    aspectRatio: args.aspectRatio,
+    count: args.count,
+    imagesGenerated: images.length,
+    seed: args.seed,
+    email: args.email,
+    hadReferences: !!(args.references && args.references.length > 0),
+    savedPaths,
+  });
 
   const lines = images.map((img, i) => {
     const parts = [`**Image ${i + 1}**`];
