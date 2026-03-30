@@ -6,6 +6,8 @@ import { listVoices } from './tools/list-voices.js';
 import { generateStoryAudioSchema, generateStoryAudio } from './tools/generate-story-audio.js';
 import { getReportSchema, getReport } from './tools/get-report.js';
 import { generateMusicSchema, generateMusic } from './tools/generate-music.js';
+import { generateMultivoiceStorySchema, generateMultivoiceStory } from './tools/generate-multivoice-story.js';
+import { generateTaggedStorySchema, generateTaggedStory } from './tools/generate-tagged-story.js';
 
 const server = new McpServer({
   name: 'tts-gen',
@@ -45,6 +47,20 @@ server.tool(
   'Generate background music using Google Lyria RealTime. Creates instrumental music from text prompts (mood, genre, instruments). Perfect for story backgrounds, scenes, and ambience.',
   generateMusicSchema,
   async (args) => generateMusic(args)
+);
+
+server.tool(
+  'generate_multivoice_story',
+  'Generate multi-voice audio from a tagged story JSON. Each narration line must start with [speaker_tag] like [narrator], [yasmin]. Use generate_tagged_story to create properly tagged stories.',
+  generateMultivoiceStorySchema,
+  async (args) => generateMultivoiceStory(args)
+);
+
+server.tool(
+  'generate_tagged_story',
+  'Generate a children\'s story with [speaker_tag] markers using Gemini AI. Creates a story JSON ready for multi-voice TTS with generate_multivoice_story.',
+  generateTaggedStorySchema,
+  async (args) => generateTaggedStory(args)
 );
 
 async function main() {

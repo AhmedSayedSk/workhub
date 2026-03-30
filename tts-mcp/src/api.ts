@@ -81,6 +81,42 @@ function createWavHeader(dataLength: number, sampleRate: number, channels = 1, b
   return header;
 }
 
+/** Check if a buffer starts with a WAV (RIFF/WAVE) header */
+function isWavBuffer(buffer: Buffer): boolean {
+  if (buffer.length < 12) return false;
+  return buffer.toString('ascii', 0, 4) === 'RIFF' &&
+         buffer.toString('ascii', 8, 12) === 'WAVE';
+}
+
+/** Extract raw PCM data from a WAV buffer by finding the 'data' chunk */
+function extractPcmFromWav(wavBuffer: Buffer): Buffer {
+  // Scan for the 'data' chunk marker (handles extended headers)
+  for (let i = 12; i < Math.min(wavBuffer.length - 8, 200); i++) {
+    if (wavBuffer.toString('ascii', i, i + 4) === 'data') {
+      const dataSize = wavBuffer.readUInt32LE(i + 4);
+      return wavBuffer.subarray(i + 8, i + 8 + dataSize);
+    }
+  }
+  // Fallback: assume standard 44-byte header
+  return wavBuffer.subarray(44);
+}
+
+/** Apply a linear fade-in to raw PCM data to eliminate initial click/transient */
+function applyFadeIn(pcmBuffer: Buffer, fadeMs: number, sampleRate: number): void {
+  const fadeSamples = Math.floor((fadeMs / 1000) * sampleRate);
+  for (let i = 0; i < fadeSamples && (i * 2 + 1) < pcmBuffer.length; i++) {
+    const gain = i / fadeSamples; // 0.0 → 1.0
+    const sample = pcmBuffer.readInt16LE(i * 2);
+    pcmBuffer.writeInt16LE(Math.round(sample * gain), i * 2);
+  }
+}
+
+/** Append silence padding to raw PCM to prevent truncation artifacts */
+function addEndPadding(pcmBuffer: Buffer, paddingMs: number, sampleRate: number): Buffer {
+  const paddingBytes = Math.floor((paddingMs / 1000) * sampleRate) * 2; // 16-bit = 2 bytes
+  return Buffer.concat([pcmBuffer, Buffer.alloc(paddingBytes)]);
+}
+
 export function estimateCost(textLength: number, model: string): number {
   const ratePerChar = model.includes('pro') ? 0.000125 : 0.0000625;
   return textLength * ratePerChar;
@@ -134,16 +170,29 @@ export async function generateSpeech(request: TTSRequest): Promise<TTSResponse> 
 
   let audioBuffer = Buffer.from(data.audioContent, 'base64');
 
-  // For LINEAR16: prepend WAV header
-  if (request.audioEncoding === 'LINEAR16') {
-    const wavHeader = createWavHeader(audioBuffer.length, request.sampleRate);
-    audioBuffer = Buffer.concat([wavHeader, audioBuffer]);
-  }
-
-  // Calculate duration
+  // For LINEAR16: clean up PCM and wrap in proper WAV header
   let durationSec: number;
   if (request.audioEncoding === 'LINEAR16') {
-    durationSec = (audioBuffer.length - 44) / (request.sampleRate * 2);
+    // Step 1: Extract raw PCM — handle both raw PCM and WAV-wrapped responses
+    let pcmData: Buffer;
+    if (isWavBuffer(audioBuffer)) {
+      pcmData = extractPcmFromWav(audioBuffer);
+    } else {
+      pcmData = audioBuffer;
+    }
+
+    // Step 2: Apply 20ms fade-in to eliminate click/transient at start
+    applyFadeIn(pcmData, 20, request.sampleRate);
+
+    // Step 3: Add 300ms silence padding at end to prevent truncation
+    pcmData = addEndPadding(pcmData, 300, request.sampleRate);
+
+    // Step 4: Wrap clean PCM in a fresh WAV header
+    const wavHeader = createWavHeader(pcmData.length, request.sampleRate);
+    audioBuffer = Buffer.concat([wavHeader, pcmData]);
+
+    // Duration from actual PCM data (subtract padding for display)
+    durationSec = (pcmData.length / (request.sampleRate * 2)) - 0.3;
   } else {
     // Rough estimate for compressed formats
     durationSec = (request.text.length / 5 / 150) * 60;
